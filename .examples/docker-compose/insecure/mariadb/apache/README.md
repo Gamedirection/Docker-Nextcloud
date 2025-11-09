@@ -52,7 +52,7 @@ services:
       - MYSQL_USER=${MYSQL_USER:?Set before deployment}
     env_file:
       # Optional additional environment file for overrides or external app configs
-      - stack.env
+      - .env
     networks:
       - nextcloud
 
@@ -129,7 +129,7 @@ services:
       exec apache2-foreground
       "
     env_file:
-      - stack.env
+      - .env
     networks:
       - nextcloud
 
@@ -168,10 +168,26 @@ services:
       - MKNOD
     image: collabora/code:latest
     env_file:
-      - stack.env
+      - .env
     networks:
       - nextcloud
     restart: always
+
+  # -----------------------
+  # Whiteboard
+  # -----------------------
+  whiteboard:
+    container_name: whiteboard
+    image: ghcr.io/nextcloud-releases/whiteboard:release
+    ports:
+      - 8081:8081
+    environment:
+      - NEXTCLOUD_URL=${NEXTCLOUD_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    env_file:
+      - .env
+    networks:
+      - nextcloud
 
   # -----------------------
   # Watchtower - Auto Updater
