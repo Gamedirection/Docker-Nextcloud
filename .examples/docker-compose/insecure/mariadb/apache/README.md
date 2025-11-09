@@ -181,7 +181,7 @@ services:
     container_name: whiteboard
     image: ghcr.io/nextcloud-releases/whiteboard:release
     ports:
-      - 8081:8081
+      - 9880:9880
     environment:
       - NEXTCLOUD_URL=${NEXTCLOUD_URL}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
