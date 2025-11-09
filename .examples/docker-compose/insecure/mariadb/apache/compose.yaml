@@ -1,54 +1,126 @@
+name: nextcloud
+
 services:
-  # Note: MariaDB is an external service. You can find more information about the configuration here:
-  # https://hub.docker.com/_/mariadb
-  db:
-    # Note: Check the recommend version here: https://docs.nextcloud.com/server/latest/admin_manual/installation/system_requirements.html#server
-    image: mariadb:lts
-    command: --transaction-isolation=READ-COMMITTED
+  mariadb:
+    image: mariadb:10.11
+    container_name: mariadb
     restart: always
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
     volumes:
-      - db:/var/lib/mysql:Z
+      - ${DB_DATA_LOCATION}:/var/lib/mysql
     environment:
-      - MYSQL_ROOT_PASSWORD=
       - MARIADB_AUTO_UPGRADE=1
       - MARIADB_DISABLE_UPGRADE_BACKUP=1
+      - INNODB_BUFFER_POOL_INSTANCES=4
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:?Set in deployment}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:?Set in deployment}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:?Set in deployment}
+      - MYSQL_USER=${MYSQL_USER:?Set in deployment}
     env_file:
-      - db.env
+      - stack.env
+    networks:
+      - nextcloud
 
-  # Note: Redis is an external service. You can find more information about the configuration here:
-  # https://hub.docker.com/_/redis
-  redis:
-    image: redis:alpine
-    restart: always
-
-  app:
-    image: nextcloud:apache
+  nextcloud:
+    image: nextcloud:production
+    container_name: nextcloud
     restart: always
     ports:
-      - 127.0.0.1:8080:80
+      - ${PORT}:80
+    links:
+      - mariadb
+      - redis
+      - collabora
     volumes:
-      - nextcloud:/var/www/html:z
-      # NOTE: The `volumes` config of the `cron` and `app` containers must match
+      - ${DATA_LOCATION}:/var/www/html
+      - ${CLI_PHP}:/usr/local/etc/php/conf.d/cli-php.ini
+      - nas-storage:/srv/nas:rw
     environment:
-      - MYSQL_HOST=db
-      - REDIS_HOST=redis
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ}
+      - PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT}
+      - PHP_MAX_EXECUTION_TIME=600
+      - PHP_MAX_INPUT_TIME=360
+      - PHP_POST_MAX_SIZE=16G
+      - PHP_UPLOAD_LIMIT=${PHP_UPLOAD_LIMIT}
+      - APPCONFIG_APPSTORETIMEOUT=300
+      - PHP_OPCACHE_MEMORY_CONSUMPTION=512
+      - PHP_OPCACHE_INTERNED_STRINGS_BUFFER=32
+      - PHP_OPCACHE_MAX_ACCELERATED_FILES=20000
+      - PHP_OPCACHE_REVALIDATE_FREQ=60
+      - PHP_OPCACHE_ENABLE_CLI=1
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_HOST_PORT=${REDIS_PORT}
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER:?Set in deployment}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD:?Set in deployment}
+      - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_TRUSTED_DOMAINS}
+      - OVERWRITEPROTOCOL=${OVERWRITEPROTOCOL}
+      - OVERWRITECLIURL=${OVERWRITECLIURL}
+    command: >
+      bash -c "
+      apt-get update -qq &&
+      apt-get install -y -qq cron &&
+      mkdir -p /var/log/nextcloud &&
+      chown www-data:www-data /var/log/nextcloud &&
+      echo 'memory_limit = 4096M' >> /usr/local/etc/php/conf.d/memory.ini &&
+      echo 'max_execution_time = 600' >> /usr/local/etc/php/conf.d/execution.ini &&
+      echo 'opcache.memory_consumption=512' >> /usr/local/etc/php/conf.d/opcache.ini &&
+      echo 'opcache.interned_strings_buffer=32' >> /usr/local/etc/php/conf.d/opcache.ini &&
+      echo 'opcache.max_accelerated_files=20000' >> /usr/local/etc/php/conf.d/opcache.ini &&
+      echo '*/5 * * * * www-data /usr/local/bin/php -f /var/www/html/cron.php >> /var/log/nextcloud/cron.log 2>&1' > /etc/cron.d/nextcloud &&
+      chmod 0644 /etc/cron.d/nextcloud &&
+      cron -L 15 &&
+      exec apache2-foreground
+      "
     env_file:
-      - db.env
-    depends_on:
-      - db
-      - redis
+      - stack.env
+    networks:
+      - nextcloud
 
-  cron:
-    image: nextcloud:apache
-    restart: always
+  redis:
+    container_name: redis-nc
+    image: redis:latest
     volumes:
-      - nextcloud:/var/www/html:z
-      # NOTE: The `volumes` config of the `cron` and `app` containers must match
-    entrypoint: /cron.sh
-    depends_on:
-      - db
-      - redis
+      - type: tmpfs
+        target: /data
+        tmpfs:
+          size: 4294967296 # 4GB
+    environment:
+      - REDIS_MEMORY=2GB
+    expose:
+      - 6379
+    command: redis-server --save 60 1 --loglevel warning
+    networks:
+      - nextcloud
+    restart: always
+
+  collabora:
+    container_name: collabora
+    hostname: collabora
+    privileged: true
+    tty: true
+    ports:
+      - 9980:9980
+    cap_add:
+      - MKNOD
+    image: collabora/code:latest
+    env_file:
+      - stack.env
+    networks:
+      - nextcloud
+    restart: always
+
+  watchtower:
+    container_name: watchtower
+    image: containrrr/watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  nextcloud:
+    driver: bridge
 
 volumes:
-  db:
-  nextcloud:
+  nas-storage:
+    external: true
