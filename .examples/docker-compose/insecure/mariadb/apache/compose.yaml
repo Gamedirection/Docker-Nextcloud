@@ -111,6 +111,19 @@ services:
       - nextcloud
     restart: always
 
+  whiteboard:
+    container_name: whiteboard
+    image: ghcr.io/nextcloud-releases/whiteboard:release
+    ports:
+      - 8081:8081
+    environment:
+      - NEXTCLOUD_URL=${NEXTCLOUD_URL}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    env_file:
+      - .env
+    networks:
+      - nextcloud
+
   watchtower:
     container_name: watchtower
     image: containrrr/watchtower
