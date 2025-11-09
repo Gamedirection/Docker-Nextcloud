@@ -9,12 +9,13 @@ Memory: 22GB / 82GB
 
 > [!NOTE]
 > ## When idle:
-> *I run about 100 other services on this server. This snapshot is at a pretty inactive time.*
-> *I do run an external proxy to manage my domain name*
-> `CPU: 3-5%` 
-> `Memory: 450MB ram`
-> `Network: 700RX and 100TX`
-> `I/O: 75MB Read & 275MB Write`
+> *I run about 100+ other containers on this server. This snapshot is at a pretty inactive time.*
+> - `CPU: 3-5%` 
+> - `Memory: 450MB ram`
+> - `Network: 700RX and 100TX`
+> - `I/O: 75MB Read & 275MB Write`
+
+> *I run an external proxy to manage my domain name*
 
 # Compose.yaml Notes for clarity
 
